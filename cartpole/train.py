@@ -74,7 +74,7 @@ if __name__ == '__main__':
             # Preprocess incoming observation and push to replay memory
             if not terminated:
                 next_obs = preprocess(next_obs, env=args.env).unsqueeze(0)
-                action = torch.tensor(action, device=device).int().unsqueeze(0)
+                action = torch.tensor(action, device=device).long().unsqueeze(0)
                 reward = torch.tensor(reward, device=device).float().unsqueeze(0)
                 memory.push(obs, action, next_obs, reward)
                 obs = next_obs

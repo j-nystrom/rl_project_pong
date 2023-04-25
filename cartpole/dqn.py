@@ -100,19 +100,16 @@ def optimize(dqn, target_dqn, memory, optimizer):
     # rewards and move to GPU if available
     observations = torch.cat(batch[0]).to(device)
     # print(f"Observation tensor: \n {observations}")
-    actions = torch.cat(batch[1]).to(device)
+    actions = torch.cat(batch[1]).unsqueeze(1).to(device)
     # print(f"Action tensor: \n {actions}")
     next_observations = torch.cat(batch[2]).to(device)
     # print(f"Next observation tensor: \n {next_observations}")
-    rewards = torch.cat(batch[3]).to(device)
+    rewards = torch.cat(batch[3]).unsqueeze(1).to(device)
     # print(f"Reward tensor: \n {rewards}")
 
     # Question: Investigate handling of terminal transitions in step above?
-    # ("special care should be taken")
     # These will never be stored in replay memory? See train.py
-    action_val = dqn.forward(next_observations)
-    max_action_val, _ = torch.max(action_val, dim=1)
-    q_values = rewards + dqn.gamma * max_action_val
+    q_values = dqn.forward(observations).gather(1, actions)
     # print(f"Q values \n {q_values} \n")
 
     # Compute the Q-value targets
@@ -120,11 +117,13 @@ def optimize(dqn, target_dqn, memory, optimizer):
     # These will never be stored in replay memory? See train.py
     target_action_val = target_dqn.forward(next_observations)
     max_target_action_val, _ = torch.max(target_action_val, dim=1)
+    max_target_action_val = max_target_action_val.unsqueeze(1)
+    # print(f"Max act val \n {max_target_action_val}")
     q_value_targets = rewards + target_dqn.gamma * max_target_action_val
     # print(f"Q target values \n {q_value_targets}")
 
     # Compute the loss with current weights
-    loss = F.mse_loss(q_values.squeeze(), q_value_targets.squeeze())
+    loss = F.mse_loss(q_values, q_value_targets.squeeze())
     # print(f"Loss: {loss}")
 
     # Perform gradient descent
