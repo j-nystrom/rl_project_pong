@@ -65,19 +65,24 @@ if __name__ == '__main__':
             steps += 1
 
             # Get action to take
-            # Note: Added steps as argument, for annealing
-            action = dqn.act(obs, steps).item()
+            action = dqn.act(obs, steps)
 
             # Act in the true environment
-            next_obs, reward, terminated, truncated, info = env.step(action)
+            next_obs, reward, terminated, truncated, _ = env.step(action.item())
 
             # Preprocess incoming observation and push to replay memory
+            # Next observation appended will depend on terminated or not
             if not terminated:
                 next_obs = preprocess(next_obs, env=args.env).unsqueeze(0)
-                action = torch.tensor(action, device=device).long().unsqueeze(0)
-                reward = torch.tensor(reward, device=device).float().unsqueeze(0)
-                memory.push(obs, action, next_obs, reward)
-                obs = next_obs
+            else:
+                next_obs = None
+            reward = torch.tensor(reward, device=device).float().unsqueeze(0)
+
+            # Store transition in memory
+            memory.push(obs, action, next_obs, reward)
+
+            # Move to next transition
+            obs = next_obs
 
             # Run optimize() function every env_config["train_frequency"] steps
             if steps % env_config["train_frequency"] == 0:
@@ -91,9 +96,6 @@ if __name__ == '__main__':
                 for key in state_dict:
                     target_state_dict[key] = state_dict[key]
                 target_dqn.load_state_dict(target_state_dict)
-
-                # target_dqn.fc1.weight = dqn.fc1.weight
-                # target_dqn.fc2.weight = dqn.fc2.weight
 
         # Evaluate the current agent
         if episode % args.evaluate_freq == 0:

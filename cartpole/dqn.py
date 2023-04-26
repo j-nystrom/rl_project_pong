@@ -70,17 +70,18 @@ class DQN(nn.Module):
             eps = max(self.eps_start - (self.eps_start / self.anneal_length) * steps,
                       self.eps_end
                       )
-
             # Sample strategy using epsilon-greedy approach
             strategy = np.random.choice(["exploit", "explore"], p=[1 - eps, eps])
 
         # Select action values based on above
         if strategy == "exploit":
-            action = torch.argmax(action_values, dim=1, keepdim=True)
+            action = torch.argmax(action_values, dim=1).long()
 
         else:
-            action = np.random.choice(self.n_actions)
-            action = torch.tensor(action, device=device)
+            action = torch.tensor(
+                np.random.choice(self.n_actions),
+                device=device,
+            ).long().unsqueeze(0)
 
         return action
 
@@ -99,32 +100,23 @@ def optimize(dqn, target_dqn, memory, optimizer):
     # Create 4 separate tensors for observations, actions, next observations,
     # rewards and move to GPU if available
     observations = torch.cat(batch[0]).to(device)
-    # print(f"Observation tensor: \n {observations}")
-    actions = torch.cat(batch[1]).unsqueeze(1).to(device)
-    # print(f"Action tensor: \n {actions}")
+    actions = torch.cat(batch[1]).to(device)
     next_observations = torch.cat(batch[2]).to(device)
-    # print(f"Next observation tensor: \n {next_observations}")
-    rewards = torch.cat(batch[3]).unsqueeze(1).to(device)
-    # print(f"Reward tensor: \n {rewards}")
+    rewards = torch.cat(batch[3]).to(device)
 
     # Question: Investigate handling of terminal transitions in step above?
     # These will never be stored in replay memory? See train.py
-    q_values = dqn.forward(observations).gather(1, actions)
-    # print(f"Q values \n {q_values.squeeze()} \n")
+    q_values = dqn.forward(observations).gather(1, actions.unsqueeze(1))
 
     # Compute the Q-value targets
     # Question: How to do this only for non-terminal transitions?
     # These will never be stored in replay memory? See train.py
     target_action_val = target_dqn.forward(next_observations)
     max_target_action_val, _ = torch.max(target_action_val, dim=1)
-    max_target_action_val = max_target_action_val.unsqueeze(1)
-    # print(f"Max act val \n {max_target_action_val}")
     q_value_targets = rewards + target_dqn.gamma * max_target_action_val
-    # print(f"Q target values \n {q_value_targets.squeeze()}")
 
     # Compute the loss with current weights
     loss = F.mse_loss(q_values.squeeze(), q_value_targets)
-    # print(f"Loss: {loss}")
 
     # Perform gradient descent
     optimizer.zero_grad()
