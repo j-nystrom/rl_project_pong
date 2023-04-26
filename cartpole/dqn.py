@@ -61,7 +61,7 @@ class DQN(nn.Module):
         """Selects an action with an epsilon-greedy exploration strategy."""
 
         # Calculate action values based on Q-value function
-        action_values = self.forward(observation)
+        action_values = self(observation)
 
         if exploit:
             strategy = "exploit"
@@ -80,7 +80,7 @@ class DQN(nn.Module):
 
         else:
             action = np.random.choice(self.n_actions)
-            action = torch.tensor(action, device=device).int()
+            action = torch.tensor(action, device=device)
 
         return action
 
@@ -110,7 +110,7 @@ def optimize(dqn, target_dqn, memory, optimizer):
     # Question: Investigate handling of terminal transitions in step above?
     # These will never be stored in replay memory? See train.py
     q_values = dqn.forward(observations).gather(1, actions)
-    # print(f"Q values \n {q_values} \n")
+    # print(f"Q values \n {q_values.squeeze()} \n")
 
     # Compute the Q-value targets
     # Question: How to do this only for non-terminal transitions?
@@ -120,10 +120,10 @@ def optimize(dqn, target_dqn, memory, optimizer):
     max_target_action_val = max_target_action_val.unsqueeze(1)
     # print(f"Max act val \n {max_target_action_val}")
     q_value_targets = rewards + target_dqn.gamma * max_target_action_val
-    # print(f"Q target values \n {q_value_targets}")
+    # print(f"Q target values \n {q_value_targets.squeeze()}")
 
     # Compute the loss with current weights
-    loss = F.mse_loss(q_values, q_value_targets.squeeze())
+    loss = F.mse_loss(q_values.squeeze(), q_value_targets)
     # print(f"Loss: {loss}")
 
     # Perform gradient descent

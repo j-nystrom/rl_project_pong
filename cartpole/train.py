@@ -86,8 +86,14 @@ if __name__ == '__main__':
             # Update the target network weights every
             # env_config["target_update_frequency"] steps
             if steps % env_config["target_update_frequency"] == 0:
-                target_dqn.fc1.weight = dqn.fc1.weight
-                target_dqn.fc2.weight = dqn.fc2.weight
+                state_dict = dqn.state_dict()
+                target_state_dict = target_dqn.state_dict()
+                for key in state_dict:
+                    target_state_dict[key] = state_dict[key]
+                target_dqn.load_state_dict(target_state_dict)
+
+                # target_dqn.fc1.weight = dqn.fc1.weight
+                # target_dqn.fc2.weight = dqn.fc2.weight
 
         # Evaluate the current agent
         if episode % args.evaluate_freq == 0:
