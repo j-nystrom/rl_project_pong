@@ -119,6 +119,7 @@ def optimize(dqn, target_dqn, memory, optimizer):
         target_action_val[non_terminal_mask] = target_dqn.forward(
             non_terminal_next_obs
         ).max(1)[0]
+        print(target_action_val)
     q_value_targets = rewards + target_dqn.gamma * target_action_val
 
     # Compute the loss with current weights

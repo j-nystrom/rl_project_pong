@@ -54,6 +54,7 @@ if __name__ == '__main__':
     # Track number of steps across all episodes
     steps = 0
 
+    # Loop through all episodes
     for episode in range(env_config["n_episodes"]):
         terminated = False
         obs, info = env.reset()
@@ -78,10 +79,8 @@ if __name__ == '__main__':
                 next_obs = None
             reward = torch.tensor(reward, device=device).float().unsqueeze(0)
 
-            # Store transition in memory
+            # Store transition in memory, move to next transition
             memory.push(obs, action, next_obs, reward)
-
-            # Move to next transition
             obs = next_obs
 
             # Run optimize() function every env_config["train_frequency"] steps
