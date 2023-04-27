@@ -103,12 +103,12 @@ if __name__ == '__main__':
             )
             print(f'Episode {episode + 1} / {env_config["n_episodes"]}: {mean_return}')
 
-            # Save current agent if it has the best performance so far.
+            # Save current agent if it has the best performance so far
             if mean_return >= best_mean_return:
                 best_mean_return = mean_return
 
                 print("Best performance so far! Saving model.")
                 torch.save(dqn, f"models/{args.env}_best.pt")
 
-    # Close environment after training is completed.
+    # Close environment after training is completed
     env.close()

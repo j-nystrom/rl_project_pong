@@ -71,7 +71,7 @@ class DQN(nn.Module):
             )
 
         # Generate action according to random choice above
-        if sample > eps:
+        if sample > eps or exploit:
             with torch.no_grad():  # Context manager to speed up computation
                 action = torch.argmax(self(observation), dim=1).long()
         else:

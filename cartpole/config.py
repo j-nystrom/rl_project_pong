@@ -20,7 +20,7 @@ n_actions: The number of actions can easily be accessed with env.action_space.n,
 CartPole = {
     "memory_size": 50000,
     "n_episodes": 1000,
-    "batch_size": 64,
+    "batch_size": 32,
     "target_update_frequency": 100,  # 100
     "train_frequency": 1,
     "gamma": 0.95,
