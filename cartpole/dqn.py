@@ -60,26 +60,16 @@ class DQN(nn.Module):
     def act(self, observation, steps=0, exploit=False):
         """Selects an action with an epsilon-greedy exploration strategy."""
 
-        # Calculate action values based on Q-value function
-        action_values = self(observation)
-
-        if exploit:
-            strategy = "exploit"
-        else:
-            # Calculate epsilon based on annealing strategy and current step
-            eps = max(self.eps_start - (self.eps_start / self.anneal_length) * steps,
-                      self.eps_end
-                      )
-            # Sample strategy using epsilon-greedy approach
-            strategy = np.random.choice(["exploit", "explore"], p=[1 - eps, eps])
-
-        # Select action values based on above
-        if strategy == "exploit":
-            action = torch.argmax(action_values, dim=1).long()
-
+        sample = random.random()
+        eps = max(
+            self.eps_start - (self.eps_start / self.anneal_length) * steps,
+            self.eps_end
+            )
+        if sample > eps:
+            action = torch.argmax(self(observation), dim=1).long()
         else:
             action = torch.tensor(
-                np.random.choice(self.n_actions),
+                random.choice(range(self.n_actions)),
                 device=device,
             ).long().unsqueeze(0)
 
@@ -101,19 +91,21 @@ def optimize(dqn, target_dqn, memory, optimizer):
     # rewards and move to GPU if available
     observations = torch.cat(batch[0]).to(device)
     actions = torch.cat(batch[1]).to(device)
-    next_observations = torch.cat(batch[2]).to(device)
     rewards = torch.cat(batch[3]).to(device)
 
-    # Question: Investigate handling of terminal transitions in step above?
-    # These will never be stored in replay memory? See train.py
+    non_terminal_mask = torch.tensor(
+        tuple(map(lambda s: s is not None, batch[2])), device=device, dtype=torch.bool
+    )
+    non_terminal_next_obs = torch.cat([s for s in batch[2] if s is not None])
+
     q_values = dqn.forward(observations).gather(1, actions.unsqueeze(1))
 
     # Compute the Q-value targets
-    # Question: How to do this only for non-terminal transitions?
-    # These will never be stored in replay memory? See train.py
-    target_action_val = target_dqn.forward(next_observations)
-    max_target_action_val, _ = torch.max(target_action_val, dim=1)
-    q_value_targets = rewards + target_dqn.gamma * max_target_action_val
+    target_action_val = torch.zeros(target_dqn.batch_size, device=device)
+    target_action_val[non_terminal_mask] = target_dqn.forward(
+        non_terminal_next_obs
+    ).max(1)[0]
+    q_value_targets = rewards + target_dqn.gamma * target_action_val
 
     # Compute the loss with current weights
     loss = F.mse_loss(q_values.squeeze(), q_value_targets)
