@@ -108,18 +108,18 @@ def optimize(dqn, target_dqn, memory, optimizer):
     non_terminal_next_obs = torch.cat([s for s in batch[2] if s is not None])
 
     # Compute Q-values for observations using the policy network
-    # This is Q(s, a; theta_i)
+    # This is Q(s, a; theta_i), and uses the most updated weights
     q_values = dqn.forward(observations).gather(1, actions.unsqueeze(1))
 
     # Compute the Q-value targets for next obs, using target network
-    # This is y_i = E[r + gamma * max_a Q(s', a'; theta_i-1]
+    # This is y_i = E[r + gamma * max_a Q(s', a'; theta_i-1], and uses "old" weights
+    # from the policy network
     # For terminal states, the action value is 0
     target_action_val = torch.zeros(target_dqn.batch_size, device=device)
     with torch.no_grad():  # Context manager to speed up computation
         target_action_val[non_terminal_mask] = target_dqn.forward(
             non_terminal_next_obs
         ).max(1)[0]
-        print(target_action_val)
     q_value_targets = rewards + target_dqn.gamma * target_action_val
 
     # Compute the loss with current weights
