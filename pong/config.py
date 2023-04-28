@@ -2,6 +2,7 @@
 """
 In this file, you may edit the hyperparameters used for different environments.
 
+obs_stack_size: Number of frames stacked in each observation.
 memory_size: Maximum size of the replay memory.
 n_episodes: Number of episodes to train for.
 batch_size: Batch size used for training DQN.
@@ -16,17 +17,18 @@ n_actions: The number of actions can easily be accessed with env.action_space.n,
     some manual engineering to account for the fact that Pong has duplicate actions.
 """
 
-# Hyperparameters for CartPole-v1
-CartPole = {
-    "memory_size": 50000,
+# Hyperparameters for Pong
+Pong = {
+    "obs_stack_size": 4,
+    "memory_size": 10000,
     "n_episodes": 1000,
     "batch_size": 32,
-    "target_update_frequency": 100,  # 100
-    "train_frequency": 1,
-    "gamma": 0.95,
+    "target_update_frequency": 1000,
+    "train_frequency": 4,
+    "gamma": 0.99,
     "lr": 1e-4,
     "eps_start": 1.0,
-    "eps_end": 0.05,
-    "anneal_length": 10**4,  # 10**4
+    "eps_end": 0.01,
+    "anneal_length": 10**6,
     "n_actions": 2,
 }

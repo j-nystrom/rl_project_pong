@@ -11,7 +11,11 @@ from dqn import DQN, ReplayMemory, optimize
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--env", choices=["CartPole-v1"], default="CartPole-v1")
+parser.add_argument(
+    "--env",
+    choices=["CartPole-v1", "ALE/Pong-v5"],
+    default="CartPole-v1",
+)
 parser.add_argument(
     "--evaluate_freq",
     type=int,
@@ -28,7 +32,7 @@ parser.add_argument(
 )
 
 # Hyperparameter configurations for different environments. See config.py.
-ENV_CONFIGS = {"CartPole-v1": config.CartPole}
+ENV_CONFIGS = {"CartPole-v1": config.CartPole, "ALE/Pong-v5": config.Pong}
 
 if __name__ == '__main__':
     args = parser.parse_args()

@@ -39,6 +39,7 @@ class DQN(nn.Module):
         super(DQN, self).__init__()
 
         # Save hyperparameters needed in the DQN class
+        self.obs_stack_size = env_config["obs_stack_size"]
         self.batch_size = env_config["batch_size"]
         self.gamma = env_config["gamma"]
         self.eps_start = env_config["eps_start"]
@@ -46,15 +47,21 @@ class DQN(nn.Module):
         self.anneal_length = env_config["anneal_length"]
         self.n_actions = env_config["n_actions"]
 
-        # Set up network architecture
-        self.fc1 = nn.Linear(4, 256)
-        self.fc2 = nn.Linear(256, self.n_actions)
+        # Set up the convolutional network architecture
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=(8, 8), stride=(4, 4), padding=0)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=0)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=0)
+        self.fc1 = nn.Linear(3136, 512)
+        self.fc2 = nn.Linear(512, self.n_actions)
 
         self.relu = nn.ReLU()
         self.flatten = nn.Flatten()
 
     def forward(self, x):
         """Runs the forward pass of the NN depending on architecture."""
+        x = self.relu(self.conv1(x))
+        x = self.relu(self.conv2(x))
+        x = self.relu(self.conv3(x))
         x = self.relu(self.fc1(x))
         x = self.fc2(x)
 
@@ -62,6 +69,9 @@ class DQN(nn.Module):
 
     def act(self, observation, steps=0, exploit=False):
         """Selects an action with an epsilon-greedy exploration strategy."""
+
+        # NOTE: The relevant actions are [2, 3] (down / up), so only those should
+        # be considered
 
         # Use epsilon-greedy to decide between greedy and random action
         sample = random.random()
