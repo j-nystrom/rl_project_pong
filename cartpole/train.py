@@ -54,6 +54,7 @@ if __name__ == '__main__':
     # Track number of steps across all episodes
     steps = 0
 
+    # Loop through all episodes
     for episode in range(env_config["n_episodes"]):
         terminated = False
         obs, info = env.reset()
@@ -65,19 +66,22 @@ if __name__ == '__main__':
             steps += 1
 
             # Get action to take
-            # Note: Added steps as argument, for annealing
-            action = dqn.act(obs, steps).item()
+            action = dqn.act(obs, steps)
 
             # Act in the true environment
-            next_obs, reward, terminated, truncated, info = env.step(action)
+            next_obs, reward, terminated, truncated, _ = env.step(action.item())
 
             # Preprocess incoming observation and push to replay memory
+            # Next observation appended will depend on terminated or not
             if not terminated:
                 next_obs = preprocess(next_obs, env=args.env).unsqueeze(0)
-                action = torch.tensor(action, device=device).int().unsqueeze(0)
-                reward = torch.tensor(reward, device=device).float().unsqueeze(0)
-                memory.push(obs, action, next_obs, reward)
-                obs = next_obs
+            else:
+                next_obs = None
+            reward = torch.tensor(reward, device=device).float().unsqueeze(0)
+
+            # Store transition in memory, move to next transition
+            memory.push(obs, action, next_obs, reward)
+            obs = next_obs
 
             # Run optimize() function every env_config["train_frequency"] steps
             if steps % env_config["train_frequency"] == 0:
@@ -86,8 +90,11 @@ if __name__ == '__main__':
             # Update the target network weights every
             # env_config["target_update_frequency"] steps
             if steps % env_config["target_update_frequency"] == 0:
-                target_dqn.fc1.weight = dqn.fc1.weight
-                target_dqn.fc2.weight = dqn.fc2.weight
+                state_dict = dqn.state_dict()
+                target_state_dict = target_dqn.state_dict()
+                for key in state_dict:
+                    target_state_dict[key] = state_dict[key]
+                target_dqn.load_state_dict(target_state_dict)
 
         # Evaluate the current agent
         if episode % args.evaluate_freq == 0:
@@ -96,12 +103,12 @@ if __name__ == '__main__':
             )
             print(f'Episode {episode + 1} / {env_config["n_episodes"]}: {mean_return}')
 
-            # Save current agent if it has the best performance so far.
+            # Save current agent if it has the best performance so far
             if mean_return >= best_mean_return:
                 best_mean_return = mean_return
 
                 print("Best performance so far! Saving model.")
                 torch.save(dqn, f"models/{args.env}_best.pt")
 
-    # Close environment after training is completed.
+    # Close environment after training is completed
     env.close()

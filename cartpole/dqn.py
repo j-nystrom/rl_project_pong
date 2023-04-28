@@ -1,5 +1,5 @@
+
 import random
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,6 +17,8 @@ class ReplayMemory:
         return len(self.memory)
 
     def push(self, obs, action, next_obs, reward):
+        """Store transition in replay memory."""
+
         if len(self.memory) < self.capacity:
             self.memory.append(None)
 
@@ -36,7 +38,7 @@ class DQN(nn.Module):
     def __init__(self, env_config):
         super(DQN, self).__init__()
 
-        # Save hyperparameters needed in the DQN class.
+        # Save hyperparameters needed in the DQN class
         self.batch_size = env_config["batch_size"]
         self.gamma = env_config["gamma"]
         self.eps_start = env_config["eps_start"]
@@ -44,6 +46,7 @@ class DQN(nn.Module):
         self.anneal_length = env_config["anneal_length"]
         self.n_actions = env_config["n_actions"]
 
+        # Set up network architecture
         self.fc1 = nn.Linear(4, 256)
         self.fc2 = nn.Linear(256, self.n_actions)
 
@@ -60,34 +63,31 @@ class DQN(nn.Module):
     def act(self, observation, steps=0, exploit=False):
         """Selects an action with an epsilon-greedy exploration strategy."""
 
-        # Calculate action values based on Q-value function
-        action_values = self.forward(observation)
+        # Use epsilon-greedy to decide between greedy and random action
+        sample = random.random()
+        eps = max(
+            self.eps_start - (self.eps_start / self.anneal_length) * steps,
+            self.eps_end
+            )
 
-        if exploit:
-            strategy = "exploit"
+        # Generate action according to random choice above
+        if sample > eps or exploit:
+            with torch.no_grad():  # Context manager to speed up computation
+                action = torch.argmax(self(observation), dim=1).long()
         else:
-            # Calculate epsilon based on annealing strategy and current step
-            eps = max(self.eps_start - (self.eps_start / self.anneal_length) * steps,
-                      self.eps_end
-                      )
-
-            # Sample strategy using epsilon-greedy approach
-            strategy = np.random.choice(["exploit", "explore"], p=[1 - eps, eps])
-
-        # Select action values based on above
-        if strategy == "exploit":
-            action = torch.argmax(action_values, dim=1, keepdim=True)
-
-        else:
-            action = np.random.choice(self.n_actions)
-            action = torch.tensor(action, device=device).int()
+            action = torch.tensor(
+                random.choice(range(self.n_actions)),
+                device=device,
+            ).long().unsqueeze(0)
 
         return action
 
 
 def optimize(dqn, target_dqn, memory, optimizer):
-    """This function samples a batch from the replay buffer and optimizes the
-    Q-network."""
+    """
+    This function samples a batch from the replay buffer and optimizes the
+    Q-network.
+    """
 
     # If we don't have enough transitions stored yet, we don't train
     if len(memory) < dqn.batch_size:
@@ -99,33 +99,31 @@ def optimize(dqn, target_dqn, memory, optimizer):
     # Create 4 separate tensors for observations, actions, next observations,
     # rewards and move to GPU if available
     observations = torch.cat(batch[0]).to(device)
-    # print(f"Observation tensor: \n {observations}")
     actions = torch.cat(batch[1]).to(device)
-    # print(f"Action tensor: \n {actions}")
-    next_observations = torch.cat(batch[2]).to(device)
-    # print(f"Next observation tensor: \n {next_observations}")
     rewards = torch.cat(batch[3]).to(device)
-    # print(f"Reward tensor: \n {rewards}")
+    # For next observations, need to handle terminal states as special case
+    non_terminal_mask = torch.tensor(
+        tuple(map(lambda s: s is not None, batch[2])), device=device, dtype=torch.bool
+    )
+    non_terminal_next_obs = torch.cat([s for s in batch[2] if s is not None])
 
-    # Question: Investigate handling of terminal transitions in step above?
-    # ("special care should be taken")
-    # These will never be stored in replay memory? See train.py
-    action_val = dqn.forward(next_observations)
-    max_action_val, _ = torch.max(action_val, dim=1)
-    q_values = rewards + dqn.gamma * max_action_val
-    # print(f"Q values \n {q_values} \n")
+    # Compute Q-values for observations using the policy network
+    # This is Q(s, a; theta_i), and uses the most updated weights
+    q_values = dqn.forward(observations).gather(1, actions.unsqueeze(1))
 
-    # Compute the Q-value targets
-    # Question: How to do this only for non-terminal transitions?
-    # These will never be stored in replay memory? See train.py
-    target_action_val = target_dqn.forward(next_observations)
-    max_target_action_val, _ = torch.max(target_action_val, dim=1)
-    q_value_targets = rewards + target_dqn.gamma * max_target_action_val
-    # print(f"Q target values \n {q_value_targets}")
+    # Compute the Q-value targets for next obs, using target network
+    # This is y_i = E[r + gamma * max_a Q(s', a'; theta_i-1], and uses "old" weights
+    # from the policy network
+    # For terminal states, the action value is 0
+    target_action_val = torch.zeros(target_dqn.batch_size, device=device)
+    with torch.no_grad():  # Context manager to speed up computation
+        target_action_val[non_terminal_mask] = target_dqn.forward(
+            non_terminal_next_obs
+        ).max(1)[0]
+    q_value_targets = rewards + target_dqn.gamma * target_action_val
 
     # Compute the loss with current weights
-    loss = F.mse_loss(q_values.squeeze(), q_value_targets.squeeze())
-    # print(f"Loss: {loss}")
+    loss = F.mse_loss(q_values.squeeze(), q_value_targets)
 
     # Perform gradient descent
     optimizer.zero_grad()
