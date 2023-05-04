@@ -6,6 +6,7 @@ import torch
 import config
 from utils import preprocess
 from evaluate import evaluate_policy
+from gymnasium.wrappers import AtariPreprocessing 
 from dqn import DQN, ReplayMemory, optimize
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,11 +35,13 @@ parser.add_argument(
 # Hyperparameter configurations for different environments. See config.py.
 ENV_CONFIGS = {"CartPole-v1": config.CartPole, "ALE/Pong-v5": config.Pong}
 
+
 if __name__ == '__main__':
     args = parser.parse_args()
 
     # Initialize environment and config
-    env = gym.make(args.env)
+    env = gym.make(args.env, render_mode="human")
+    env = AtariPreprocessing(env, screen_size=84, grayscale_obs=True, frame_skip=1, noop_max=30)
     env_config = ENV_CONFIGS[args.env]
 
     # Initialize deep Q-networks, incl. target network
@@ -60,15 +63,28 @@ if __name__ == '__main__':
 
     # Loop through all episodes
     for episode in range(env_config["n_episodes"]):
+        
         terminated = False
         obs, info = env.reset()
+        
+        ###############################################################
+        obs_stack_size= 1 #not clear if this is like a malloc or what?
+        ###############################################################
 
         # Get first observation from environment
         obs = preprocess(obs, env=args.env).unsqueeze(0)
-
+        
+        #Initialize the stacks
+        obs_stack = torch.cat(obs_stack_size * [obs]).unsqueeze(0).to(device)
+        next_obs_stack = torch.cat(obs_stack_size * [obs]).unsqueeze(0).to(device)
+        
+        #Put first obervation into the stacks
+        obs_stack = torch.cat((obs_stack[:, 1:, ...], obs.unsqueeze(1)), dim=1).to(device)
+        next_obs_stack = torch.cat((obs_stack[:, 1:, ...], obs.unsqueeze(1)), dim=1).to(device)
+        
         while not terminated:
             steps += 1
-
+            
             # Get action to take
             action = dqn.act(obs, steps)
 
@@ -79,13 +95,19 @@ if __name__ == '__main__':
             # Next observation appended will depend on terminated or not
             if not terminated:
                 next_obs = preprocess(next_obs, env=args.env).unsqueeze(0)
+                next_obs_stack = torch.cat((next_obs_stack[:, 1:, ...], next_obs.unsqueeze(1)), dim=1).to(device)
             else:
                 next_obs = None
+                ##############################################################
+                #should check behaviour on the stack when nothing else happens
+                ##############################################################
+                next_obs_stack = None
             reward = torch.tensor(reward, device=device).float().unsqueeze(0)
 
             # Store transition in memory, move to next transition
-            memory.push(obs, action, next_obs, reward)
+            memory.push(obs_stack, action, next_obs_stack, reward)
             obs = next_obs
+            obs_stack = next_obs_stack
 
             # Run optimize() function every env_config["train_frequency"] steps
             if steps % env_config["train_frequency"] == 0:
