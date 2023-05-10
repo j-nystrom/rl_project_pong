@@ -62,6 +62,11 @@ class DQN(nn.Module):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         x = self.relu(self.conv3(x))
+        #######################################################
+        #According to studium a flatten should happen in
+        #between the convolution and the fully connected layers
+        # x = self.Flatten(x)?
+        #######################################################
         x = self.relu(self.fc1(x))
         x = self.fc2(x)
 
